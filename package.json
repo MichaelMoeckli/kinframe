@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "bakeoff": "tsx scripts/model-bakeoff.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

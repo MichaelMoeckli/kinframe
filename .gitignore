@@ -37,6 +37,10 @@ yarn-error.log*
 # kinframe
 /brand/references/*
 !/brand/references/README.md
+/public/uploads
+/bakeoff/inputs/*
+/bakeoff/outputs
+!/bakeoff/inputs/.gitkeep
 
 # vercel
 .vercel
