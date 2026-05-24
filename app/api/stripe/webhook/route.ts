@@ -1,10 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import type Stripe from "stripe";
 import { env } from "@/lib/env";
 import { getStripe } from "@/lib/stripe";
 import { createOrderIdempotent, getOrderByStripeSessionId } from "@/lib/orders";
 import { sendOrderConfirmation } from "@/lib/email";
 import { DEFAULT_PRODUCT } from "@/lib/products";
+import { submitToFulfillment } from "@/lib/fulfillment/submit";
 
 export const runtime = "nodejs";
 // Webhook signature verification needs the raw body. Disable any caching.
@@ -107,6 +108,10 @@ async function handleCheckoutCompleted(
   });
 
   await sendOrderConfirmation(order);
+
+  // Fire-and-forget after the 200 has gone back to Stripe. submitToFulfillment
+  // swallows its own errors and records `fulfillment_failed` if anything blows up.
+  after(() => submitToFulfillment(order.id));
 }
 
 function serializeShipping(session: Stripe.Checkout.Session): unknown {
