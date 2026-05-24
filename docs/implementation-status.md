@@ -2,7 +2,7 @@
 
 _Last updated: 2026-05-24_
 
-Based on a walk through the codebase. The repo is mid-M2: the **upload → preview** funnel works end-to-end (with mock or real generators), and **checkout → fulfillment → ops** is the next big chunk.
+Based on a walk through the codebase. M2 is done and M3 (Stripe checkout) is freshly landed; **fulfillment → ops** is the next big chunk.
 
 ## ✅ Done
 
@@ -28,23 +28,29 @@ Based on a walk through the codebase. The repo is mid-M2: the **upload → previ
 - Preview page with polling status, before/after, "Order" CTA (`app/preview/[id]/PreviewClient.tsx`)
 - Model bake-off script + scoring rubric (`scripts/model-bakeoff.ts`, `docs/model-picking.md`)
 
+**M3 — Checkout (Stripe)**
+- `POST /api/checkout` creates a Stripe Checkout Session from `previewId`, prefers `STRIPE_PRICE_ID` and falls back to inline `price_data` (`app/api/checkout/route.ts`)
+- `POST /api/stripe/webhook` verifies signature, handles `checkout.session.completed`, idempotent on `stripeSessionId` (`app/api/stripe/webhook/route.ts`)
+- `lib/orders.ts` mirrors the previews-store pattern (DB + in-memory fallback) with `createOrderIdempotent`
+- `/order/success?session_id=…` polls `/api/order` until the webhook lands; `/order/cancel?previewId=…` routes back to the preview
+- Resend order-confirmation email with dev-mode console fallback (`lib/email.ts`)
+- Shared `lib/stripe.ts` SDK client pinned to API version `2026-04-22.dahlia`
+- Env loader (`lib/env.ts`) now tolerates blank `.env.local` entries (treats empty strings as undefined)
+
 ## 🔧 In progress / partial
 
 - **`docs/model-picking.md` "Current pick"** section is still TBD — bake-off hasn't been scored and a model locked in
-- **Checkout endpoint** is stubbed and returns 501 (`app/api/checkout/route.ts`) — the client-side button exists but has nothing to call
 - **Email signups** persist but no Resend confirmation/double-opt-in wired up despite `RESEND_API_KEY` being in env
 - **Previews polling** runs every 2.5s indefinitely while not `ready`/`failed` — no max-attempts/backoff
+- **Stripe price** still defaults to inline `price_data` until a real `STRIPE_PRICE_ID` is created in the Stripe dashboard
 
 ## 📋 To do — by milestone
 
-### M3 — Checkout (Stripe)
+### M3 — Checkout (Stripe) — shipped, follow-ups
 
-- [ ] Implement `POST /api/checkout`: create Stripe Checkout Session from `previewId` + `STRIPE_PRICE_ID`, attach metadata `{ previewId }`, return `url`
-- [ ] Add `POST /api/stripe/webhook`: handle `checkout.session.completed` → write `orders` row (status `paid`), capture shipping address
-- [ ] `/order/success?session_id=…` confirmation page (poll order until paid)
-- [ ] `/order/cancel` page back to preview
-- [ ] Resend order-confirmation email
-- [ ] Idempotency on webhook (dedupe by `stripeSessionId`)
+- [ ] Create the live Stripe Price in dashboard and set `STRIPE_PRICE_ID` in Vercel (the inline `price_data` fallback works but breaks Stripe reporting/analytics)
+- [ ] End-to-end smoke test against a real Stripe test-mode account once webhooks are wired (`stripe listen --forward-to localhost:3000/api/stripe/webhook`)
+- [ ] Handle `checkout.session.async_payment_succeeded` for delayed payment methods (today we early-return on non-`paid` sessions)
 
 ### M4 — Print fulfillment (Printful or Gelato)
 

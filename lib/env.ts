@@ -1,30 +1,46 @@
 import { z } from "zod";
 
+// `.env.local` files routinely contain blank entries like `DATABASE_URL=` for
+// vars that aren't configured yet. Treat those as undefined so optional URL
+// fields don't fail validation. Applied to all string-ish fields below.
+const optionalStr = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().optional(),
+);
+const optionalUrl = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().url().optional(),
+);
+const optionalEmail = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().email().optional(),
+);
+
 const serverSchema = z.object({
-  DATABASE_URL: z.string().url().optional(),
-  BLOB_READ_WRITE_TOKEN: z.string().optional(),
-  REPLICATE_API_TOKEN: z.string().optional(),
-  REPLICATE_MODEL_VERSION: z.string().optional(),
-  GEMINI_API_KEY: z.string().optional(),
-  GEMINI_IMAGE_MODEL: z.string().optional(),
-  STRIPE_SECRET_KEY: z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_PRICE_ID: z.string().optional(),
-  PRINTFUL_API_KEY: z.string().optional(),
-  PRINTFUL_VARIANT_ID: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
-  RESEND_FROM_EMAIL: z.string().email().optional(),
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
-  META_CAPI_TOKEN: z.string().optional(),
-  ADMIN_PASSWORD: z.string().optional(),
-  SENTRY_DSN: z.string().optional(),
+  DATABASE_URL: optionalUrl,
+  BLOB_READ_WRITE_TOKEN: optionalStr,
+  REPLICATE_API_TOKEN: optionalStr,
+  REPLICATE_MODEL_VERSION: optionalStr,
+  GEMINI_API_KEY: optionalStr,
+  GEMINI_IMAGE_MODEL: optionalStr,
+  STRIPE_SECRET_KEY: optionalStr,
+  STRIPE_WEBHOOK_SECRET: optionalStr,
+  STRIPE_PRICE_ID: optionalStr,
+  PRINTFUL_API_KEY: optionalStr,
+  PRINTFUL_VARIANT_ID: optionalStr,
+  RESEND_API_KEY: optionalStr,
+  RESEND_FROM_EMAIL: optionalEmail,
+  UPSTASH_REDIS_REST_URL: optionalUrl,
+  UPSTASH_REDIS_REST_TOKEN: optionalStr,
+  META_CAPI_TOKEN: optionalStr,
+  ADMIN_PASSWORD: optionalStr,
+  SENTRY_DSN: optionalStr,
 });
 
 const clientSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
-  NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
-  NEXT_PUBLIC_META_PIXEL_ID: z.string().optional(),
+  NEXT_PUBLIC_POSTHOG_KEY: optionalStr,
+  NEXT_PUBLIC_META_PIXEL_ID: optionalStr,
 });
 
 export const env = {
