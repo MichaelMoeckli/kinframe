@@ -112,9 +112,18 @@ export async function POST(req: NextRequest) {
       status: "failed",
       errorMessage: err instanceof Error ? err.message : "Generation failed",
     });
+    // Safety / content blocks aren't server errors — they're a user-fixable
+    // condition. Return 422 so the client can show a "try another photo"
+    // message that doesn't sound like a crash.
+    const isBlocked =
+      err instanceof Error && err.name === "GeminiBlockedError";
     return NextResponse.json(
-      { error: "We couldn't paint that one — try a different photo." },
-      { status: 500 },
+      {
+        error: isBlocked
+          ? "Our painter couldn't work with that photo — try a clearer family photo with everyone facing the camera."
+          : "We couldn't paint that one — try a different photo.",
+      },
+      { status: isBlocked ? 422 : 500 },
     );
   }
 }

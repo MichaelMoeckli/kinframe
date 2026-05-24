@@ -41,6 +41,14 @@ export async function rateLimit(
   limit: number,
   windowMs: number,
 ): Promise<RateLimitResult> {
+  // Local dev escape hatch — set KINFRAME_SKIP_RATE_LIMIT=1 in .env.local to
+  // bypass the daily preview cap. Guarded to non-production so it can't ship.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.KINFRAME_SKIP_RATE_LIMIT === "1"
+  ) {
+    return { success: true, remaining: limit, resetAt: new Date(Date.now() + windowMs) };
+  }
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
     return memoryLimit(key, limit, windowMs);
   }

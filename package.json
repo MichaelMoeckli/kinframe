@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "bakeoff": "tsx scripts/model-bakeoff.ts"
+    "bakeoff": "tsx scripts/model-bakeoff.ts",
+    "gen-refs": "tsx scripts/generate-style-refs.ts"
   },
   "dependencies": {
     "@google/genai": "^2.6.0",
