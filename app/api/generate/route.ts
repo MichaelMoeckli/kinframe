@@ -5,7 +5,9 @@ import { rateLimit, LIMITS, hashIp } from "@/lib/rateLimit";
 import { createPreview, updatePreview } from "@/lib/previews";
 import { getGenerator } from "@/lib/ai/generator";
 import { ACTIVE_PRESET } from "@/lib/ai/preset";
+import { cropToAspect } from "@/lib/ai/aspect";
 import { watermark } from "@/lib/watermark";
+import { DEFAULT_PRODUCT, aspectRatioLabel } from "@/lib/products";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -57,14 +59,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Use a JPG, PNG, WEBP, or HEIC photo" }, { status: 415 });
   }
 
-  // Normalize: strip EXIF, re-encode as JPEG for consistency.
+  // Normalize: strip EXIF, re-encode as JPEG, and crop to the print aspect
+  // ratio (e.g. 4:5 for the 16×20" canvas) so the model paints exactly the
+  // framing the customer will see in the preview and on the printed canvas.
+  const productAspect = aspectRatioLabel(DEFAULT_PRODUCT);
   const original = Buffer.from(await file.arrayBuffer());
   const normalized = await sharp(original)
     .rotate()
     .jpeg({ quality: 92 })
     .toBuffer();
+  const cropped = await cropToAspect(normalized, productAspect);
 
-  const originalStored = await putImage(normalized, {
+  const originalStored = await putImage(cropped, {
     pathname: newImagePath("originals", "jpg"),
     contentType: "image/jpeg",
   });
@@ -85,6 +91,7 @@ export async function POST(req: NextRequest) {
       imageUrl: absoluteUrl(req, originalStored.url),
       preset: ACTIVE_PRESET,
       size: 1024,
+      aspectRatio: productAspect,
     });
 
     const watermarked = await watermark(result.imageBytes);
