@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getPreview } from "@/lib/previews";
-import { DEFAULT_PRODUCT } from "@/lib/products";
+import { DEFAULT_PRODUCT, aspectRatioValue } from "@/lib/products";
 import { PreviewClient } from "./PreviewClient";
 
 export const dynamic = "force-dynamic";
@@ -25,8 +25,9 @@ export default async function PreviewPage({
           Here&rsquo;s how it&rsquo;s coming together
         </h1>
         <p className="mt-3 text-ink-soft">
-          The preview has a light overlay. The framed canvas you receive will be clean,
-          higher resolution, and printed on premium canvas.
+          What you see is what ships — same framing, same crop, printed at{" "}
+          {DEFAULT_PRODUCT.dimensions.widthIn}×{DEFAULT_PRODUCT.dimensions.heightIn}&Prime; on
+          premium canvas. The light overlay is removed and resolution upscaled before printing.
         </p>
       </div>
 
@@ -38,6 +39,8 @@ export default async function PreviewPage({
           originalUrl={preview.originalUrl}
           priceLabel={priceLabel}
           productName={DEFAULT_PRODUCT.name}
+          aspectRatio={aspectRatioValue(DEFAULT_PRODUCT)}
+          dimensionsLabel={`${DEFAULT_PRODUCT.dimensions.widthIn}×${DEFAULT_PRODUCT.dimensions.heightIn}"`}
         />
       </div>
 

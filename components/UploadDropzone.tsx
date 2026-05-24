@@ -3,9 +3,12 @@
 import { useState, useCallback } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import { useRouter } from "next/navigation";
+import { DEFAULT_PRODUCT, aspectRatioValue } from "@/lib/products";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT = { "image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"], "image/webp": [".webp"], "image/heic": [".heic"] };
+const PRINT_ASPECT = aspectRatioValue(DEFAULT_PRODUCT);
+const DIMENSIONS_LABEL = `${DEFAULT_PRODUCT.dimensions.widthIn}×${DEFAULT_PRODUCT.dimensions.heightIn}"`;
 
 export function UploadDropzone() {
   const router = useRouter();
@@ -59,13 +62,22 @@ export function UploadDropzone() {
   if (file && previewUrl) {
     return (
       <div className="grid gap-6 sm:grid-cols-2 items-start">
-        <div className="rounded-lg overflow-hidden bg-cream/40 ring-1 ring-cream">
+        <div
+          className="rounded-lg overflow-hidden bg-cream/40 ring-1 ring-cream relative"
+          style={{ aspectRatio: PRINT_ASPECT }}
+        >
           { }
-          <img src={previewUrl} alt="Your selected photo" className="w-full h-auto" />
+          <img
+            src={previewUrl}
+            alt="Your selected photo"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
         </div>
         <div>
           <p className="text-sm text-ink-soft">
-            Looking good. Press the button and we&rsquo;ll paint your portrait — usually about a minute.
+            Looking good. We&rsquo;ll paint this exact framing — the {DIMENSIONS_LABEL} canvas
+            ships with the same crop you see on the left. Press the button and your portrait
+            takes about a minute.
           </p>
           <div className="mt-6 flex flex-col gap-3">
             <button

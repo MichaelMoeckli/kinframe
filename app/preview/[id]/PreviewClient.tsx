@@ -11,6 +11,10 @@ type Props = {
   originalUrl: string;
   priceLabel: string;
   productName: string;
+  /** width / height, e.g. 0.8 for a 16×20" portrait canvas. */
+  aspectRatio: number;
+  /** Human label like "16×20"" — shown next to the framed preview. */
+  dimensionsLabel: string;
 };
 
 export function PreviewClient({
@@ -20,6 +24,8 @@ export function PreviewClient({
   originalUrl,
   priceLabel,
   productName,
+  aspectRatio,
+  dimensionsLabel,
 }: Props) {
   const [status, setStatus] = useState<Status>(initialStatus);
   const [watermarkedUrl, setWatermarkedUrl] = useState<string | null>(
@@ -95,32 +101,46 @@ export function PreviewClient({
 
   if (status !== "ready" || !watermarkedUrl) {
     return (
-      <div className="text-center max-w-md mx-auto py-16">
-        <div className="inline-block animate-pulse">
-          <div className="h-2 w-2 rounded-full bg-frame inline-block mx-1" />
-          <div className="h-2 w-2 rounded-full bg-frame inline-block mx-1" />
-          <div className="h-2 w-2 rounded-full bg-frame inline-block mx-1" />
+      <div className="mx-auto max-w-md py-16">
+        <div
+          className="mx-auto rounded-lg bg-cream/40 ring-1 ring-cream flex items-center justify-center"
+          style={{ aspectRatio, width: "min(100%, 360px)" }}
+        >
+          <div>
+            <div className="text-center animate-pulse">
+              <div className="h-2 w-2 rounded-full bg-frame inline-block mx-1" />
+              <div className="h-2 w-2 rounded-full bg-frame inline-block mx-1" />
+              <div className="h-2 w-2 rounded-full bg-frame inline-block mx-1" />
+            </div>
+            <p className="mt-4 font-display text-2xl text-center">Painting your portrait…</p>
+            <p className="mt-2 text-sm text-ink-soft text-center px-4">
+              This usually takes about a minute. Keep this tab open.
+            </p>
+          </div>
         </div>
-        <p className="mt-4 font-display text-2xl">Painting your portrait…</p>
-        <p className="mt-2 text-sm text-ink-soft">
-          This usually takes about a minute. Keep this tab open.
-        </p>
       </div>
     );
   }
 
   return (
     <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr] items-start">
-      <figure className="rounded-lg overflow-hidden bg-cream/40 ring-1 ring-cream shadow-sm">
+      <figure
+        className="rounded-lg overflow-hidden bg-cream/40 ring-1 ring-cream shadow-sm relative"
+        style={{ aspectRatio }}
+      >
         { }
-        <img src={watermarkedUrl} alt="Your Kinframe preview" className="w-full h-auto" />
+        <img
+          src={watermarkedUrl}
+          alt="Your Kinframe preview"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
       </figure>
       <div>
         <h2 className="font-display text-3xl tracking-tight">{productName}</h2>
         <p className="mt-3 text-ink-soft leading-relaxed">
-          Hand-finished frame, premium canvas, ready to hang. The portrait above is a low-res
-          preview with an overlay — what arrives at your door is sharp, clean, and printed at
-          gallery quality.
+          Hand-finished frame, premium canvas, ready to hang. The portrait above is shown at
+          the exact {dimensionsLabel} framing that will be printed — same crop, same proportions.
+          The light overlay is removed and resolution upscaled to gallery quality before printing.
         </p>
         <div className="mt-6">
           <div className="font-display text-3xl text-frame-dark">{priceLabel}</div>

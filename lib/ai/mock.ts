@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import type { Generator, GenerateInput, GenerateResult } from "./generator";
+import { cropToAspect, parseAspect } from "./aspect";
 
 /**
  * Local stand-in for the real model. Applies a warm-tinted, softened look
@@ -10,11 +11,24 @@ import type { Generator, GenerateInput, GenerateResult } from "./generator";
 export class MockGenerator implements Generator {
   readonly id = "mock-painterly";
 
-  async generate({ imageUrl, size = 1024 }: GenerateInput): Promise<GenerateResult> {
+  async generate({
+    imageUrl,
+    size = 1024,
+    aspectRatio = "4:5",
+  }: GenerateInput): Promise<GenerateResult> {
     const buffer = await fetchBytes(imageUrl);
 
-    const imageBytes = await sharp(buffer)
-      .resize(size, size, { fit: "inside", withoutEnlargement: false })
+    // Smart-crop first so the painterly filter operates on the same framing
+    // the customer will see in the preview (and on the printed canvas).
+    const cropped = await cropToAspect(buffer, aspectRatio);
+
+    const { w, h } = parseAspect(aspectRatio);
+    const longest = Math.max(w, h);
+    const targetW = Math.round((size * w) / longest);
+    const targetH = Math.round((size * h) / longest);
+
+    const imageBytes = await sharp(cropped)
+      .resize(targetW, targetH, { fit: "cover" })
       .modulate({ brightness: 1.05, saturation: 1.25, hue: 12 })
       .gamma(1.1)
       .blur(0.6)

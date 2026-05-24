@@ -5,6 +5,12 @@ export type GenerateInput = {
   preset: AiPreset;
   /** Target longest-side in pixels. Previews ~1024, print ~6000. */
   size?: number;
+  /**
+   * Target output aspect ratio in "w:h" form (e.g. "4:5" for the 16×20"
+   * framed canvas). Generators must crop or compose to this exact ratio so
+   * what the customer previews is what Printful prints. Defaults to "4:5".
+   */
+  aspectRatio?: string;
 };
 
 export type GenerateResult = {
