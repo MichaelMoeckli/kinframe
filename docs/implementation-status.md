@@ -2,7 +2,7 @@
 
 _Last updated: 2026-05-24_
 
-Based on a walk through the codebase. M2 is done and M3 (Stripe checkout) is freshly landed; **fulfillment → ops** is the next big chunk.
+Based on a walk through the codebase. M2, M3 (Stripe checkout), and M4 (Printful fulfillment) are all landed; **growth instrumentation + ops** is the next big chunk.
 
 ## ✅ Done
 
@@ -37,6 +37,16 @@ Based on a walk through the codebase. M2 is done and M3 (Stripe checkout) is fre
 - Shared `lib/stripe.ts` SDK client pinned to API version `2026-04-22.dahlia`
 - Env loader (`lib/env.ts`) now tolerates blank `.env.local` entries (treats empty strings as undefined)
 
+**M4 — Print fulfillment (Printful)**
+- Printful chosen as POD (16×20 framed canvas variant via `PRINTFUL_VARIANT_ID`)
+- `lib/fulfillment/printful.ts`: typed REST client (`createPrintfulOrder`), HMAC-SHA256 webhook signature verify, Stripe→Printful address mapper
+- `lib/fulfillment/printReady.ts`: upscales the unwatermarked `generatedUrl` to `product.printResolution` (4800×6000) with sharp/lanczos3 and stores it in Blob
+- `lib/fulfillment/submit.ts`: `submitToFulfillment(orderId)` orchestrates print-ready build → Printful POST → status flip to `submitted`; records `fulfillment_failed` on any error
+- Stripe webhook fires `submitToFulfillment` via Next 16 `after()` so Stripe gets its 200 immediately
+- `POST /api/printful/webhook` handles `package_shipped` (writes `trackingUrl`, fires shipping email), `package_returned` / `order_failed` / `order_canceled` (mark `fulfillment_failed`)
+- Resend shipping-notification email with tracking link (`sendShippingNotification` in `lib/email.ts`)
+- Dev/sandbox path: when `PRINTFUL_API_KEY` is unset, the order is marked `submitted` with a `dev-mock-…` printfulOrderId so the rest of the flow still runs
+
 ## 🔧 In progress / partial
 
 - **`docs/model-picking.md` "Current pick"** section is still TBD — bake-off hasn't been scored and a model locked in
@@ -52,15 +62,17 @@ Based on a walk through the codebase. M2 is done and M3 (Stripe checkout) is fre
 - [ ] End-to-end smoke test against a real Stripe test-mode account once webhooks are wired (`stripe listen --forward-to localhost:3000/api/stripe/webhook`)
 - [ ] Handle `checkout.session.async_payment_succeeded` for delayed payment methods (today we early-return on non-`paid` sessions)
 
-### M4 — Print fulfillment (Printful or Gelato)
+### M4 — Print fulfillment (Printful) — shipped, follow-ups
 
-- [ ] Decide Printful vs Gelato (margins + 16×20 framed canvas variant availability)
-- [ ] Re-render print-ready image: re-run generator at `printResolution` (4800×6000), unwatermarked, upscale if needed
-- [ ] Upload print-ready file to Blob with signed/long-lived URL
-- [ ] `submitToFulfillment(orderId)`: create order in POD, store `printfulOrderId`, transition `orders.status` to `submitted`
-- [ ] Fulfillment webhook → update status (`in_production` → `shipped` → `delivered`), store `trackingUrl`
-- [ ] Shipping notification email with tracking link
-- [ ] Failure path: `fulfillment_failed` triggers ops alert + auto-refund flow
+- [x] Decide Printful vs Gelato (Printful picked)
+- [x] Build print-ready file at `printResolution` (4800×6000), upscaled from the unwatermarked preview
+- [x] Upload print-ready file to Blob
+- [x] `submitToFulfillment(orderId)`: create order in Printful, store `printfulOrderId`, transition `orders.status` to `submitted`
+- [x] Fulfillment webhook (`/api/printful/webhook`) → `package_shipped` writes `trackingUrl` + flips status to `shipped`
+- [x] Shipping notification email with tracking link
+- [ ] End-to-end smoke test against the Printful sandbox (set `PRINTFUL_API_KEY`/`VARIANT_ID`/`WEBHOOK_SECRET` against sandbox, confirm order appears + `package_shipped` round-trips)
+- [ ] Failure path: `fulfillment_failed` → ops alert + auto-refund (currently logs only)
+- [ ] Optional: re-run generator at print resolution instead of upscaling (better fidelity, costs ~$0.50/order)
 
 ### M5 — Generation hardening
 
@@ -105,4 +117,4 @@ Based on a walk through the codebase. M2 is done and M3 (Stripe checkout) is fre
 
 ## Recommended next step
 
-Lock the model (M5 first task — it gates everything else's perceived quality), then ship M3 Stripe checkout. M4 fulfillment can be manually bridged for the first ~20 orders so you can start running paid traffic before the integration is fully automated.
+Lock the model (M5 first task — it gates everything else's perceived quality) and do an end-to-end smoke test against the Printful sandbox to confirm the live submission path works. Then M6 growth instrumentation unblocks running paid traffic.

@@ -28,6 +28,7 @@ const serverSchema = z.object({
   STRIPE_PRICE_ID: optionalStr,
   PRINTFUL_API_KEY: optionalStr,
   PRINTFUL_VARIANT_ID: optionalStr,
+  PRINTFUL_WEBHOOK_SECRET: optionalStr,
   RESEND_API_KEY: optionalStr,
   RESEND_FROM_EMAIL: optionalEmail,
   UPSTASH_REDIS_REST_URL: optionalUrl,
