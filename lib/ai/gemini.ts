@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
 import type { Generator, GenerateInput, GenerateResult } from "./generator";
+import { cropToAspect } from "./aspect";
 
 /** Longest side (px) we send to Gemini. Keeps base64 payload reasonable and
  *  reduces IMAGE_OTHER failures we've seen on full-resolution phone photos. */
@@ -54,7 +55,7 @@ export class GeminiGenerator implements Generator {
     this.model = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
   }
 
-  async generate({ imageUrl, preset }: GenerateInput): Promise<GenerateResult> {
+  async generate({ imageUrl, preset, aspectRatio = "4:5" }: GenerateInput): Promise<GenerateResult> {
     const { bytes, mimeType } = await fetchImageBytes(imageUrl);
     // Downscale before sending. Large phone photos round-tripped as base64
     // are the most common trigger of IMAGE_OTHER and just cost latency.
@@ -172,9 +173,15 @@ export class GeminiGenerator implements Generator {
       }
     }
 
+    // Gemini doesn't accept an aspect_ratio parameter — it returns whatever
+    // ratio it feels matches the input. Crop to the print ratio here so the
+    // preview matches what Printful will print, using attention-based smart
+    // crop to keep faces in frame.
+    const cropped = await cropToAspect(result.imageBytes, aspectRatio);
+
     return {
-      imageBytes: result.imageBytes,
-      contentType: result.contentType,
+      imageBytes: cropped,
+      contentType: "image/jpeg",
       predictionId: null,
     };
   }

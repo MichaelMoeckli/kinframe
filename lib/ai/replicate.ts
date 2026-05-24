@@ -1,5 +1,6 @@
 import Replicate from "replicate";
 import type { Generator, GenerateInput, GenerateResult } from "./generator";
+import { cropToAspect } from "./aspect";
 
 /**
  * Real generator backed by Replicate. The exact model + LoRA combo lives in
@@ -27,14 +28,18 @@ export class ReplicateGenerator implements Generator {
     this.client = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
   }
 
-  async generate({ imageUrl, preset }: GenerateInput): Promise<GenerateResult> {
+  async generate({ imageUrl, preset, aspectRatio = "4:5" }: GenerateInput): Promise<GenerateResult> {
     const modelRef = process.env.REPLICATE_MODEL_VERSION!;
 
     // Replicate's servers can't fetch http://localhost — inline as base64
     // when we're running against a local upload store.
     const inputImage = await toPubliclyFetchableImage(imageUrl);
 
-    const input = buildKontextInput({ imageUrl: inputImage, prompt: preset.prompt });
+    const input = buildKontextInput({
+      imageUrl: inputImage,
+      prompt: preset.prompt,
+      aspectRatio,
+    });
 
     // The SDK accepts both "owner/model" and "owner/model:hash". The cast
     // here just satisfies TypeScript's template-literal type.
@@ -47,8 +52,14 @@ export class ReplicateGenerator implements Generator {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Replicate output fetch failed: ${res.status}`);
 
+    // Even though we asked for aspectRatio, defensively crop the output so
+    // the preview is byte-for-byte the print framing — no surprises if a
+    // model returns a slightly different ratio.
+    const raw = Buffer.from(await res.arrayBuffer());
+    const imageBytes = await cropToAspect(raw, aspectRatio);
+
     return {
-      imageBytes: Buffer.from(await res.arrayBuffer()),
+      imageBytes,
       contentType: "image/jpeg",
       predictionId: null,
     };
@@ -56,11 +67,19 @@ export class ReplicateGenerator implements Generator {
 }
 
 /** Input shape for FLUX Kontext (pro / max). */
-function buildKontextInput({ imageUrl, prompt }: { imageUrl: string; prompt: string }) {
+function buildKontextInput({
+  imageUrl,
+  prompt,
+  aspectRatio,
+}: {
+  imageUrl: string;
+  prompt: string;
+  aspectRatio: string;
+}) {
   return {
     input_image: imageUrl,
     prompt,
-    aspect_ratio: "match_input_image",
+    aspect_ratio: aspectRatio,
     output_format: "jpg",
     safety_tolerance: 2,
     prompt_upsampling: false,
