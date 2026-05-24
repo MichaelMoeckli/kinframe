@@ -12,7 +12,7 @@ export type Product = {
 
 export const FRAMED_CANVAS_16X20: Product = {
   id: "framed-canvas-16x20",
-  name: "Framed Canvas Portrait — 16×20\"",
+  name: "Framed Canvas Portrait - 16x20\"",
   description:
     "A hand-illustrated family portrait, painted from your photo and printed on premium canvas with a hand-finished wooden frame. Ready to hang.",
   priceCents: 9900,
