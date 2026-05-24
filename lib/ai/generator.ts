@@ -22,13 +22,17 @@ export interface Generator {
 let cached: Generator | null = null;
 
 /**
- * Returns the active generator. Picks the real Replicate one when configured,
- * otherwise falls back to the sharp-based mock so the funnel works end-to-end
- * with zero external services.
+ * Returns the active generator. Preference order:
+ *   1. Gemini ("nano-banana")  — when GEMINI_API_KEY is set
+ *   2. Replicate (FLUX Kontext) — when REPLICATE_API_TOKEN + REPLICATE_MODEL_VERSION are set
+ *   3. Mock (sharp-based)       — so the funnel runs end-to-end with zero external services
  */
 export async function getGenerator(): Promise<Generator> {
   if (cached) return cached;
-  if (process.env.REPLICATE_API_TOKEN && process.env.REPLICATE_MODEL_VERSION) {
+  if (process.env.GEMINI_API_KEY) {
+    const { GeminiGenerator } = await import("./gemini");
+    cached = new GeminiGenerator();
+  } else if (process.env.REPLICATE_API_TOKEN && process.env.REPLICATE_MODEL_VERSION) {
     const { ReplicateGenerator } = await import("./replicate");
     cached = new ReplicateGenerator();
   } else {

@@ -5,6 +5,8 @@ const serverSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
   REPLICATE_API_TOKEN: z.string().optional(),
   REPLICATE_MODEL_VERSION: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_IMAGE_MODEL: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),

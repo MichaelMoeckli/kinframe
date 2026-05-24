@@ -13,13 +13,18 @@
  * winner. Lock the chosen model+version into REPLICATE_MODEL_VERSION.
  */
 
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Replicate from "replicate";
 import sharp from "sharp";
 import { ACTIVE_PRESET } from "../lib/ai/preset";
+
+// Match Next.js's env-loading order: .env.local wins, then .env.
+// dotenv won't overwrite vars that are already set, so order matters.
+loadEnv({ path: ".env.local" });
+loadEnv({ path: ".env" });
 
 type Candidate = {
   /** Short id used in filenames. */
@@ -56,6 +61,8 @@ const CANDIDATES: Candidate[] = [
       aspect_ratio: "match_input_image",
       safety_tolerance: 2,
     }),
+
+    
   },
   // Add a FLUX-dev + painterly LoRA candidate here once you've picked a LoRA
   // from Replicate / Civitai. Example (replace with real model + version):
@@ -132,7 +139,11 @@ async function main() {
 
     if (generated.length > 0) {
       const gridPath = path.join(runDir, `${stem}__grid.jpg`);
-      await composeGrid(bytes, generated, gridPath);
+      try {
+        await composeGrid(bytes, generated, gridPath);
+      } catch (e) {
+        console.log(`  grid                 ✗ ${e instanceof Error ? e.message : e}`);
+      }
     }
   }
 
@@ -145,24 +156,30 @@ async function composeGrid(
   outPath: string,
 ) {
   const TILE = 600;
+  const LABEL_H = 40;
   const tiles = [{ id: "original", bytes: original }, ...candidates];
   const rendered = await Promise.all(
     tiles.map(async (t) => {
-      const labeled = await sharp(t.bytes)
+      // Resize first so we know the actual tile width before drawing the label.
+      const resized = await sharp(t.bytes)
         .resize(TILE, TILE, { fit: "inside" })
-        .extend({ top: 40, bottom: 0, left: 0, right: 0, background: "#1F1A14" })
+        .toBuffer();
+      const rm = await sharp(resized).metadata();
+      const w = rm.width ?? TILE;
+      const h = rm.height ?? TILE;
+      const labeled = await sharp(resized)
+        .extend({ top: LABEL_H, bottom: 0, left: 0, right: 0, background: "#1F1A14" })
         .composite([
           {
             input: Buffer.from(
-              `<svg width="${TILE}" height="40"><text x="12" y="28" fill="#FBF7F0" font-family="serif" font-size="22">${t.id}</text></svg>`,
+              `<svg width="${w}" height="${LABEL_H}"><text x="12" y="28" fill="#FBF7F0" font-family="serif" font-size="22">${t.id}</text></svg>`,
             ),
             top: 0,
             left: 0,
           },
         ])
         .toBuffer();
-      const m = await sharp(labeled).metadata();
-      return { bytes: labeled, w: m.width ?? TILE, h: m.height ?? TILE };
+      return { bytes: labeled, w, h: h + LABEL_H };
     }),
   );
   const W = rendered.reduce((a, t) => a + t.w, 0);

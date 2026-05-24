@@ -7,7 +7,7 @@ const steps = [
   {
     n: "02",
     title: "We paint it",
-    body: "Our artists, working with a careful illustration process, turn your photo into a warm, painterly portrait. You see it before you buy.",
+    body: "Your photo is turned into a warm, painterly portrait — soft light, brush texture, your family unmistakably themselves. You see it before you buy.",
   },
   {
     n: "03",

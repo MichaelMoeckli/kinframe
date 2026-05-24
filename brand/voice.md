@@ -4,11 +4,11 @@
 
 ## What Kinframe is
 
-A hand-illustrated family portrait, painted from your photo, framed and delivered to your door. A keepsake for the wall.
+A warm, painterly family portrait made from your photo, framed on premium canvas and delivered to your door. A keepsake for the wall.
 
 ## What we say
 
-- "Hand-illustrated family heirloom"
+- "Hand-illustrated family heirloom" — describes the *look*, not the manufacturing
 - "Storybook portrait"
 - "A painting of your family, for your wall"
 - "Made from your favorite photo"
@@ -17,6 +17,7 @@ A hand-illustrated family portrait, painted from your photo, framed and delivere
 ## What we never say
 
 - "AI art", "AI-generated", "powered by AI", "neural", "machine learning", "algorithm"
+- "Our artists", "painted by an artist", "our illustrators" — anything that names a human painting the portrait. The aesthetic is hand-illustrated; the making is not manual, and we won't pretend otherwise.
 - "Ghibli", "Studio Ghibli", "anime", "Miyazaki", or any character names
 - "Filter", "effect", "edit your photo"
 - "Cheap", "fast", "instant" — we want it to feel considered, not transactional
@@ -40,7 +41,7 @@ Will see us first in a Meta/Instagram feed. Will judge in 1.5 seconds whether th
 ## Headline patterns that work
 
 - "A painting of your family, for your wall."
-- "Your favorite photo, painted by hand."
+- "Your favorite photo, as a painting."
 - "The portrait you'll keep forever."
 
 ## Headline patterns to avoid

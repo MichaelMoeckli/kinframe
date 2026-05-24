@@ -12,7 +12,16 @@ export type PreviewPatch = Partial<
   Pick<Preview, "watermarkedUrl" | "generatedUrl" | "status" | "errorMessage" | "replicatePredictionId">
 >;
 
-const memory = new Map<string, Preview>();
+type PreviewStore = Map<string, Preview>;
+
+declare global {
+
+  var __kinframePreviewStore: PreviewStore | undefined;
+}
+
+// Module state survives Next.js HMR reloads only when attached to globalThis.
+const memory: PreviewStore = globalThis.__kinframePreviewStore ?? new Map();
+globalThis.__kinframePreviewStore = memory;
 
 function hasDb(): boolean {
   return !!process.env.DATABASE_URL;
