@@ -3,39 +3,47 @@ import type { Generator, GenerateInput, GenerateResult } from "./generator";
 import { cropToAspect } from "./aspect";
 
 /**
- * Real generator backed by Replicate. The exact model + LoRA combo lives in
+ * Real generator backed by Replicate. The exact model lives in
  * REPLICATE_MODEL_VERSION so you can swap models via env, not code.
- *
- * The input shape below targets the FLUX Kontext family (flux-kontext-pro,
- * flux-kontext-max). If you swap in flux-dev + a painterly LoRA or any model
- * with a different schema, update buildInput() to match.
  *
  * REPLICATE_MODEL_VERSION can be either:
  *   - "owner/model"              (uses latest published version)
  *   - "owner/model:versionhash"  (pinned — recommended for production)
+ *
+ * Input schemas differ per model family — see buildInput() below. The families
+ * we support are the ones on the 2026-08 candidate list in docs/model-picking.md.
  */
 export class ReplicateGenerator implements Generator {
-  readonly id = "replicate";
+  readonly id: string;
   private client: Replicate;
+  private modelRef: string;
 
-  constructor() {
+  /**
+   * @param modelRef Overrides REPLICATE_MODEL_VERSION. Used by the bake-off to
+   *   run several candidates in one pass without touching env.
+   */
+  constructor(modelRef?: string) {
     if (!process.env.REPLICATE_API_TOKEN) {
       throw new Error("REPLICATE_API_TOKEN is required");
     }
-    if (!process.env.REPLICATE_MODEL_VERSION) {
+    const ref = modelRef ?? process.env.REPLICATE_MODEL_VERSION;
+    if (!ref) {
       throw new Error("REPLICATE_MODEL_VERSION is required");
     }
+    this.modelRef = ref;
+    this.id = `replicate:${ref}`;
     this.client = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
   }
 
   async generate({ imageUrl, preset, aspectRatio = "4:5" }: GenerateInput): Promise<GenerateResult> {
-    const modelRef = process.env.REPLICATE_MODEL_VERSION!;
+    const modelRef = this.modelRef;
 
     // Replicate's servers can't fetch http://localhost — inline as base64
     // when we're running against a local upload store.
     const inputImage = await toPubliclyFetchableImage(imageUrl);
 
-    const input = buildKontextInput({
+    const input = buildInput({
+      modelRef,
       imageUrl: inputImage,
       prompt: preset.prompt,
       aspectRatio,
@@ -66,24 +74,116 @@ export class ReplicateGenerator implements Generator {
   }
 }
 
-/** Input shape for FLUX Kontext (pro / max). */
-function buildKontextInput({
+/**
+ * Model families we know how to talk to, and how to recognise them from the
+ * Replicate slug. Order matters — first match wins.
+ *
+ * These shapes were read off the live Replicate OpenAPI schemas on 2026-08-01.
+ * The big split: FLUX Kontext takes a single `input_image` string, while every
+ * newer family takes an *array* of reference images under its own field name.
+ * Sending the Kontext shape to FLUX.2 or Seedream silently drops the photo and
+ * you get a generated family that isn't the customer's — so this mapping is
+ * load-bearing, not cosmetic.
+ */
+type ModelFamily = "kontext" | "flux2" | "nano-banana" | "nano-banana-pro" | "seedream" | "qwen-edit";
+
+function detectFamily(modelRef: string): ModelFamily {
+  const slug = modelRef.split(":")[0].toLowerCase();
+  if (slug.includes("flux-kontext")) return "kontext";
+  if (slug.includes("flux-2")) return "flux2";
+  if (slug.includes("nano-banana-pro")) return "nano-banana-pro";
+  if (slug.includes("nano-banana")) return "nano-banana";
+  if (slug.includes("seedream")) return "seedream";
+  if (slug.includes("qwen-image-edit")) return "qwen-edit";
+  // Unknown model: assume the Kontext shape (what we shipped with) and let
+  // Replicate's own validation surface the mismatch.
+  console.warn(`[replicate] Unknown model family for "${modelRef}" — assuming FLUX Kontext input shape`);
+  return "kontext";
+}
+
+function buildInput({
+  modelRef,
   imageUrl,
   prompt,
   aspectRatio,
 }: {
+  modelRef: string;
   imageUrl: string;
   prompt: string;
   aspectRatio: string;
-}) {
-  return {
-    input_image: imageUrl,
-    prompt,
-    aspect_ratio: aspectRatio,
-    output_format: "jpg",
-    safety_tolerance: 2,
-    prompt_upsampling: false,
-  };
+}): Record<string, unknown> {
+  switch (detectFamily(modelRef)) {
+    // black-forest-labs/flux-kontext-pro | -max | -dev
+    case "kontext":
+      return {
+        input_image: imageUrl,
+        prompt,
+        aspect_ratio: aspectRatio,
+        output_format: "jpg",
+        safety_tolerance: 2,
+        prompt_upsampling: false,
+      };
+
+    // black-forest-labs/flux-2-pro | -max. Accepts up to 8 reference images;
+    // we send one. `resolution` is megapixels, not a "2K"-style label.
+    case "flux2":
+      return {
+        input_images: [imageUrl],
+        prompt,
+        aspect_ratio: aspectRatio,
+        resolution: "2 MP",
+        output_format: "jpg",
+        output_quality: 92,
+        safety_tolerance: 2,
+      };
+
+    // google/nano-banana-pro (Gemini Pro Image). `resolution` is 1K/2K/4K.
+    // safety_filter_level stays at Replicate's default posture; family photos
+    // occasionally trip stricter settings.
+    case "nano-banana-pro":
+      return {
+        image_input: [imageUrl],
+        prompt,
+        aspect_ratio: aspectRatio,
+        resolution: "2K",
+        output_format: "jpg",
+        safety_filter_level: "block_only_high",
+      };
+
+    // google/nano-banana (Gemini 2.5 Flash Image). Minimal schema — no
+    // resolution control.
+    case "nano-banana":
+      return {
+        image_input: [imageUrl],
+        prompt,
+        aspect_ratio: aspectRatio,
+        output_format: "jpg",
+      };
+
+    // bytedance/seedream-4.5 | seedream-5-lite. `size` is the resolution tier;
+    // sequential_image_generation must stay disabled or we get a set, not one.
+    case "seedream":
+      return {
+        image_input: [imageUrl],
+        prompt,
+        aspect_ratio: aspectRatio,
+        size: "2K",
+        max_images: 1,
+        sequential_image_generation: "disabled",
+      };
+
+    // qwen/qwen-image-edit-plus. Note: its aspect_ratio enum has no 4:5, so we
+    // ask it to match the input and let cropToAspect() do the framing.
+    case "qwen-edit":
+      return {
+        image: [imageUrl],
+        prompt,
+        aspect_ratio: "match_input_image",
+        output_format: "jpg",
+        output_quality: 92,
+        go_fast: false,
+      };
+  }
 }
 
 /**

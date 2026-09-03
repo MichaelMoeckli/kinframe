@@ -1,8 +1,8 @@
 # Kinframe — Implementation Status & Roadmap
 
-_Last updated: 2026-05-24_
+_Last updated: 2026-08-01_
 
-Based on a walk through the codebase. M2, M3 (Stripe checkout), and M4 (Printful fulfillment) are all landed; **growth instrumentation + ops** is the next big chunk.
+Based on a walk through the codebase. M2, M3 (Stripe checkout), and M4 (Printful fulfillment) are all landed, and the model is now locked (M5's gating task); **growth instrumentation + ops** is the next big chunk.
 
 ## ✅ Done
 
@@ -47,9 +47,16 @@ Based on a walk through the codebase. M2, M3 (Stripe checkout), and M4 (Printful
 - Resend shipping-notification email with tracking link (`sendShippingNotification` in `lib/email.ts`)
 - Dev/sandbox path: when `PRINTFUL_API_KEY` is unset, the order is marked `submitted` with a `dev-mock-…` printfulOrderId so the rest of the flow still runs
 
+**M5 (partial) — model locked**
+- 5-way bake-off run 2026-08-01 on `painterly-v6`; **`google/nano-banana-pro` picked**, incumbent `flux-kontext-max` placed 3rd (`docs/model-picking.md`)
+- `scripts/model-bakeoff.ts` now runs multiple candidates in one pass with an N-up grid, a spend estimate, and a `summary.md` per run
+- `lib/ai/replicate.ts` dispatches input schema per model family (Kontext / FLUX.2 / Nano Banana / Seedream / Qwen) — the newer families take array-typed image inputs, and the wrong shape makes a model silently ignore the customer photo
+- `REPLICATE_MODEL_VERSION` updated in `.env.example` and `.env.local`
+
 ## 🔧 In progress / partial
 
-- **`docs/model-picking.md` "Current pick"** section is still TBD — bake-off hasn't been scored and a model locked in
+- **One bake-off photo unscored** — Replicate credit ran out mid-run on `pexels-seljansalim-33769388.jpg`; re-run it to confirm the pick holds
+- **`REPLICATE_MODEL_VERSION` not yet updated in Vercel** — prod still points at `flux-kontext-max`
 - **Email signups** persist but no Resend confirmation/double-opt-in wired up despite `RESEND_API_KEY` being in env
 - **Previews polling** runs every 2.5s indefinitely while not `ready`/`failed` — no max-attempts/backoff
 - **Stripe price** still defaults to inline `price_data` until a real `STRIPE_PRICE_ID` is created in the Stripe dashboard
@@ -76,8 +83,9 @@ Based on a walk through the codebase. M2, M3 (Stripe checkout), and M4 (Printful
 
 ### M5 — Generation hardening
 
-- [ ] Lock the model: complete bake-off, write up "Current pick" in `docs/model-picking.md`, set `REPLICATE_MODEL_VERSION` in Vercel
-- [ ] Move generation off the request thread → queue + status webhook (Inngest/Trigger.dev/Vercel Queue) — currently a 60s `maxDuration` Node request
+- [x] Lock the model: bake-off complete, "Current pick" written up in `docs/model-picking.md`
+- [ ] Set `REPLICATE_MODEL_VERSION=google/nano-banana-pro` in Vercel
+- [ ] **Move generation off the request thread** → queue + status webhook (Inngest/Trigger.dev/Vercel Queue) — currently a 60s `maxDuration` Node request. Now more urgent: the picked model's median latency is ~31s vs Kontext's ~13s, so the slow tail has much less headroom.
 - [ ] Bound the preview polling (max attempts, exponential backoff, "still painting" copy after 90s)
 - [ ] Add face-detection sanity check before generation (reject blurry/no-face photos with friendly copy)
 - [ ] Add `previewId`-scoped rate limit so polling doesn't accidentally limit other users

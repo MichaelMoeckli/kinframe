@@ -29,11 +29,11 @@ let cached: Generator | null = null;
 
 /**
  * Returns the active generator. Preference order:
- *   1. Replicate (FLUX Kontext) — when REPLICATE_API_TOKEN + REPLICATE_MODEL_VERSION are set.
- *      Preferred because FLUX Kontext is purpose-built for identity-preserving
- *      stylistic edits — the exact problem our generator solves.
- *   2. Gemini ("nano-banana") — when GEMINI_API_KEY is set. Tested but has a hard
- *      ceiling between style commitment and identity preservation; kept as fallback.
+ *   1. Replicate — when REPLICATE_API_TOKEN + REPLICATE_MODEL_VERSION are set.
+ *      The model itself is env-driven; the standing pick and the bake-off that
+ *      produced it are in docs/model-picking.md.
+ *   2. Gemini direct SDK — when GEMINI_API_KEY is set. Adds style-reference
+ *      anchoring the Replicate path doesn't have, but pinned to Gemini.
  *   3. Mock (sharp-based) — so the funnel runs end-to-end with zero external services.
  */
 export async function getGenerator(): Promise<Generator> {
