@@ -66,6 +66,9 @@ export async function submitToFulfillment(orderId: string): Promise<void> {
     await updateOrder(orderId, { printfulOrderId, status: "submitted" });
   } catch (err) {
     await updateOrder(orderId, { status: "fulfillment_failed" }).catch(() => undefined);
-    console.error("[fulfillment] submit failed", { orderId, err });
+    console.error("[fulfillment] submit failed", {
+      orderId,
+      err: err instanceof Error ? { message: err.message, stack: err.stack } : err,
+    });
   }
 }

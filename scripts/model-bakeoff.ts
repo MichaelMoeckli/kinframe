@@ -55,6 +55,8 @@ type Candidate = {
   ref: string;
   approxCostUsd: number;
   note: string;
+  /** Merged over the family defaults, so one model can be scored at two tiers. */
+  inputOverrides?: Record<string, unknown>;
 };
 
 const CANDIDATES: Candidate[] = [
@@ -77,10 +79,18 @@ const CANDIDATES: Candidate[] = [
     note: "Incumbent — won 2026-08-01, now Elo 1308 and the priciest of the leaders",
   },
   {
+    name: "gpt-image-2-medium",
+    ref: "openai/gpt-image-2",
+    approxCostUsd: 0.05,
+    inputOverrides: { quality: "medium" },
+    note: "Same look as high at ~1/4 the price and ~half the latency (59.5s vs 135s on 2026-09-03)",
+  },
+  {
     name: "gpt-image-2",
     ref: "openai/gpt-image-2",
     approxCostUsd: 0.211,
-    note: "Elo 1327 at quality=high — the ceiling reference, not a cost-viable pick",
+    inputOverrides: { quality: "high" },
+    note: "The quality ceiling. ~4x the price and ~3x the latency of medium for a modest gain",
   },
   {
     name: "flux-2-pro",
@@ -142,7 +152,7 @@ async function main() {
     }
     entries = selected.map((c) => ({
       label: c.name,
-      generator: new ReplicateGenerator(c.ref),
+      generator: new ReplicateGenerator(c.ref, c.inputOverrides),
       costUsd: c.approxCostUsd,
     }));
   }

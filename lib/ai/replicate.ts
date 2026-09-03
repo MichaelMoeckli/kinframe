@@ -17,12 +17,18 @@ export class ReplicateGenerator implements Generator {
   readonly id: string;
   private client: Replicate;
   private modelRef: string;
+  private inputOverrides: Record<string, unknown>;
 
   /**
    * @param modelRef Overrides REPLICATE_MODEL_VERSION. Used by the bake-off to
    *   run several candidates in one pass without touching env.
+   * @param inputOverrides Merged over the family defaults from buildInput().
+   *   Lets the bake-off score two tiers of the SAME model as separate
+   *   candidates - e.g. gpt-image-2 at quality "high" ($0.211, ~135s) vs
+   *   "medium" ($0.05, ~60s), which is a bigger difference than most
+   *   model-to-model swaps.
    */
-  constructor(modelRef?: string) {
+  constructor(modelRef?: string, inputOverrides?: Record<string, unknown>) {
     if (!process.env.REPLICATE_API_TOKEN) {
       throw new Error("REPLICATE_API_TOKEN is required");
     }
@@ -31,6 +37,7 @@ export class ReplicateGenerator implements Generator {
       throw new Error("REPLICATE_MODEL_VERSION is required");
     }
     this.modelRef = ref;
+    this.inputOverrides = inputOverrides ?? {};
     this.id = `replicate:${ref}`;
     this.client = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
   }
@@ -42,12 +49,15 @@ export class ReplicateGenerator implements Generator {
     // when we're running against a local upload store.
     const inputImage = await toPubliclyFetchableImage(imageUrl);
 
-    const input = buildInput({
-      modelRef,
-      imageUrl: inputImage,
-      prompt: preset.prompt,
-      aspectRatio,
-    });
+    const input = {
+      ...buildInput({
+        modelRef,
+        imageUrl: inputImage,
+        prompt: preset.prompt,
+        aspectRatio,
+      }),
+      ...this.inputOverrides,
+    };
 
     // The SDK accepts both "owner/model" and "owner/model:hash". The cast
     // here just satisfies TypeScript's template-literal type.
@@ -227,15 +237,20 @@ function buildInput({
         output_format: "jpeg",
       };
 
-    // openai/gpt-image-2. `quality` is the price dial — "high" is what the
-    // editing leaderboard scores and costs ~$0.21/image, vs ~$0.05 at medium.
+    // openai/gpt-image-2. `quality` is the price AND latency dial, and the
+    // gap is larger than most model-to-model swaps:
+    //   high   ~$0.211  ~135s   (5 runs, 128-137s)
+    //   medium ~$0.050  ~47s    (4 runs, 42.9-48.3s)
+    // Scored side by side on 2026-09-03: medium keeps the palette, brushwork
+    // and identity, and it is the shipped tier. Override to "high" for the
+    // print-resolution render if a two-stage pipeline ever lands.
     // aspect_ratio enum has no 4:5; 3:4 is the closest portrait.
     case "gpt-image":
       return {
         input_images: [imageUrl],
         prompt,
         aspect_ratio: nearestSupported(aspectRatio, GPT_IMAGE_RATIOS),
-        quality: "high",
+        quality: "medium",
         number_of_images: 1,
         output_format: "jpeg",
         output_compression: 92,

@@ -64,10 +64,13 @@ const gptImage = (quality: string): Probe => ({
   }),
 });
 
-// Order matters: the 4x seedream 2K block runs first and back-to-back, so a
-// cold start (if any) shows up as a slow first rep followed by fast ones.
+// The cold-start question is settled: a 4x back-to-back block on 2026-09-03
+// ran 59.1 / 132.0 / 69.1 / 53.7s — fast first, slow second, so the ~60s vs
+// ~130s split is scheduling variance, not a warmable container. Pooled with
+// the two bake-offs it is bimodal: 5 runs at 53-69s, 7 at 125-154s.
+// What remains open is whether a cheaper tier is visually acceptable.
 const PROBES: Probe[] = [
-  seedream("2K", 4),
+  seedream("2K"), // same-session baseline for the comparison below
   seedream("1.5K"),
   seedream("1K"),
   gptImage("medium"),
@@ -95,15 +98,31 @@ async function main() {
   console.log(`Outputs: ${outDir}\n`);
 
   const rows: Array<{ label: string; rep: number; ms: number; ok: boolean; err?: string }> = [];
+  let first = true;
 
   for (const probe of PROBES) {
     for (let rep = 1; rep <= probe.reps; rep++) {
       const tag = probe.reps > 1 ? `${probe.label}  (rep ${rep}/${probe.reps})` : probe.label;
-      const t0 = Date.now();
+      // Replicate throttles prediction *creation* to 6/min with a burst of 1
+      // while the account balance is under $5. Long generations space
+      // themselves out, but fast failures do not — without this gap the
+      // remaining probes 429 and look like model errors. Skipped before the
+      // first call so the run starts immediately.
+      if (!first) await sleep(12_000);
+      first = false;
+      // Reset on each attempt so a 429 retry's wait never inflates the
+      // measured latency — we time the attempt that actually ran.
+      let t0 = Date.now();
       try {
-        const out = await client.run(probe.ref as `${string}/${string}`, {
-          input: probe.input(image, prompt),
-        });
+        const out = await withRetry(
+          () =>
+            client.run(probe.ref as `${string}/${string}`, {
+              input: probe.input(image, prompt),
+            }),
+          () => {
+            t0 = Date.now();
+          },
+        );
         const url = pickUrl(out);
         const res = await fetch(url);
         const buf = Buffer.from(await res.arrayBuffer());
@@ -133,6 +152,36 @@ async function main() {
   await fs.writeFile(path.join(outDir, "summary.md"), lines.join("\n"), "utf8");
   console.log(`\n${lines.join("\n")}`);
   console.log(`\nCompare quality by eye in ${outDir}`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Retries only on 429. Replicate's throttle message carries a `retry_after`
+ * in seconds; we honour it when present and fall back to a widening wait.
+ * `onAttemptStart` fires immediately before each real attempt so the caller
+ * can restart its stopwatch and keep throttle waits out of the measurement.
+ */
+async function withRetry<T>(fn: () => Promise<T>, onAttemptStart: () => void, tries = 4): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    onAttemptStart();
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      const throttled = msg.includes("429") || /throttl/i.test(msg);
+      if (!throttled || attempt === tries) throw e;
+      const m = /retry_after"?\s*:\s*(\d+)/.exec(msg);
+      const waitMs = m ? (Number(m[1]) + 2) * 1000 : attempt * 15_000;
+      console.log(`      throttled — waiting ${(waitMs / 1000).toFixed(0)}s (attempt ${attempt}/${tries})`);
+      await sleep(waitMs);
+    }
+  }
+  throw lastErr;
 }
 
 function pickUrl(output: unknown): string {
