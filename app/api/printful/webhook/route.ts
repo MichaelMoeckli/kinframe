@@ -32,11 +32,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, configured: false });
   }
 
-  const rawBody = await req.text();
-  const signature = req.headers.get("x-pf-webhook-signature");
-  if (!verifyPrintfulWebhook(rawBody, signature)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  const token = req.nextUrl.searchParams.get("token");
+  if (!verifyPrintfulWebhook(token)) {
+    return NextResponse.json({ error: "Invalid token" }, { status: 400 });
   }
+
+  const rawBody = await req.text();
 
   let event: PrintfulEvent;
   try {

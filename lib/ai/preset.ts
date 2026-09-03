@@ -389,4 +389,129 @@ export const PAINTERLY_V6: AiPreset = {
   guidance: 3.5,
 };
 
-export const ACTIVE_PRESET = PAINTERLY_V6;
+/**
+ * V7 - fixes the two failure modes visible in the 2026-09-03 six-model bake-off:
+ *
+ *   1. Forged painter's signatures. gpt-image-2 painted a fully legible fake
+ *      artist name ("L. Moreau") into the corner of pexels-askar-abayev;
+ *      nano-banana-2, flux-2-pro and seedream-5-lite painted illegible
+ *      signature scrawls on 1-3 of 4 photos each. This ships to the customer:
+ *      printReady.ts upscales the UNwatermarked file, so the fake signature
+ *      lands on the canvas. It also breaks the brand guardrail against
+ *      implying a named human painted the piece.
+ *      Likely self-inflicted: V6 said "Specific oil-paint signatures that MUST
+ *      be visible in the output" meaning brushwork hallmarks, and models read
+ *      it as an instruction to sign the painting.
+ *      Fix: never use the word "signature" for brushwork, and forbid signing
+ *      explicitly.
+ *
+ *   2. negativePrompt is dead config. It is declared on every preset and read
+ *      by NOTHING (grep -rn negativePrompt lib/). On top of that, none of the
+ *      2026-09 shortlist models (nano-banana-2, seedream-5-*, gpt-image-2,
+ *      flux-2-*) expose a negative-prompt input at all, so wiring it up would
+ *      not help. Every constraint that actually matters therefore has to live
+ *      in the positive prompt.
+ *      Fix: fold the load-bearing negatives (ethnicity drift, dropped people,
+ *      signatures) inline as positive prohibitions. negativePrompt is kept
+ *      populated for models that may support it later, but is NOT relied on.
+ */
+export const PAINTERLY_V7: AiPreset = {
+  id: "painterly-v7",
+  label: "Warm Oil Portrait v7",
+  prompt: [
+    // Medium - V6 text, with "signatures" renamed to "hallmarks" throughout.
+    "Repaint this photograph as a warm, contemporary commissioned oil painting on canvas -",
+    "a family portrait by a modern portrait painter, not an Old Masters museum piece.",
+    "The output must be a PAINTING, not a photograph and not a photo with a filter.",
+    "Specific oil-paint hallmarks that MUST be visible in the output:",
+    "directional brush strokes that follow the form of cheeks, jaw, hair, and fabric folds;",
+    "broken-color edges where adjacent tones meet (not crisp photographic edges);",
+    "thicker impasto highlights on cheekbones, the bridge of the nose, knuckles, and fabric ridges;",
+    "softer scumbled blending in mid-tones and shadows;",
+    "subtle canvas weave texture visible in flat background areas.",
+    "If any of these hallmarks are missing the output is wrong.",
+    // UNSIGNED - new in V7. The failure this preset exists to fix.
+    "The painting is UNSIGNED. Do NOT sign it.",
+    "There must be NO painter's signature, NO artist name, NO initials, NO monogram,",
+    "NO date, NO handwritten marks, NO lettering, NO watermark and NO text of any kind",
+    "anywhere in the image, including the corners and the edges of the canvas.",
+    "Every corner of the canvas is plain painted surface only.",
+    // Aesthetic - contemporary warm keepsake, not classical drama.
+    "Aesthetic: warm, soft, inviting, gift-feeling, suitable for a living-room wall.",
+    "Bright but painted - NOT dark, NOT dramatic, NOT moody, NOT museum-piece somber.",
+    "Even gentle warm light, soft painted shadows. NO heavy chiaroscuro. NO ivory black shadows.",
+    "Warm modern palette: cream, soft sage, peach, warm ochre, dusty terracotta, light browns.",
+    "Lighter overall key than a classical portrait - closer to a sunlit room than to candlelight.",
+    // IDENTITY - strongest clause in the prompt, names the failure mode explicitly.
+    "IDENTITY (non-negotiable): every person in the painting must be unmistakably the SAME individual",
+    "as in the reference photo, including their ETHNICITY and ethnic facial features.",
+    "Preserve ethnic features exactly as they appear in the photo:",
+    "eye shape and epicanthic folds, nose shape and bridge width, lip shape and thickness,",
+    "cheekbone structure, jawline width, brow shape, forehead shape, skin tone.",
+    "Do NOT Europeanize, Westernize, Asianize, or shift any person's features toward a different ethnicity.",
+    "Do NOT lighten anyone's skin tone, and do NOT lighten or recolor anyone's hair -",
+    "black hair stays black, dark brown stays dark brown, and grey hair stays grey.",
+    "Do NOT idealize children or de-age elders - paint wrinkles, age lines, and individual character honestly,",
+    "warmly but truthfully.",
+    "Preserve eyeglasses on the exact same person, jewelry, watches, facial hair, hair color and length,",
+    "and any distinctive accessories, all rendered in oil paint.",
+    "Preserve clothing colors, garment styles, embroidery, prints, and decorative details,",
+    "interpreted in soft painted brushwork.",
+    // COMPOSITION - new emphasis in V7. nano-banana-pro silently deleted the
+    // foreground photographer from pexels-askar-abayev on the 2026-09-03 run.
+    "Preserve group composition, poses, gestures, and who stands where.",
+    "Paint EVERY person visible in the photograph, including partially visible people,",
+    "people at the edges of the frame, and anyone in the foreground.",
+    "Do NOT remove, merge, add or reposition any person.",
+    // BACKGROUND - explicit dark-backdrop rescue.
+    "Background: repaint the original scene in the same warm contemporary oil style,",
+    "kept soft and uncluttered so the family remains the focus.",
+    "EXCEPTION: if the original background is a black, near-black, or dark studio backdrop,",
+    "do NOT paint it black. Replace it with a warm soft painted wash - gentle cream, warm taupe,",
+    "or muted sage - like a contemporary portrait studio wall, so the painting reads bright and inviting.",
+    "Do NOT leave the background blank, bare or unpainted - this is a finished painting, not a study.",
+    "Keep the original lighting direction, but rendered softly - not dramatically.",
+    // Expression / closing.
+    "Natural relaxed expressions with soft asymmetric smiles, lived-in painted faces, warm and kind.",
+    "Quality of a beloved commissioned family portrait - the kind a customer gives as a Mother's Day",
+    "or anniversary gift and that the recipient hangs proudly on a living-room wall.",
+  ].join(" "),
+  // NOTE: currently unused - no generator reads this field, and no model on the
+  // 2026-09 shortlist accepts a negative prompt. Kept in sync anyway so it is
+  // correct if a future model family supports it. Do NOT move a constraint here
+  // and consider it handled - it must also appear in the positive prompt above.
+  negativePrompt: [
+    // Anti-signature signals - new in V7.
+    "painter's signature, artist signature, signed canvas, signature in corner,",
+    "initials, monogram, handwritten name, painted date, lettering, typography, text, watermark,",
+    // Anti-photo signals.
+    "photograph, photographic, photorealistic, unedited photo, photo retouching, photo filter,",
+    "soft focus, gaussian blur, smartphone HDR, beauty filter, skin smoothing,",
+    "3D render, CGI, digital painting that looks airbrushed,",
+    // Anti-flat-illustration signals.
+    "flat vector illustration, flat shading, cel shading, posterized, cartoon, comic book,",
+    "smooth gradients without brushwork, airbrushed surfaces, missing brush strokes,",
+    // Anti-museum-piece signals.
+    "Old Masters, Rembrandt, Velazquez, Caravaggio, baroque chiaroscuro,",
+    "dark moody portrait, somber, gloomy, brooding, 17th century, Renaissance painting,",
+    "ivory black, deep shadows, heavy chiaroscuro, candlelit, dramatic single-source lighting,",
+    "dark background, black background, black studio backdrop, sepia toned, muddy umber tones,",
+    // Anti-ethnicity-drift signals.
+    "Europeanized features, Westernized features, changed ethnicity, generic Caucasian face,",
+    "lightened skin, lightened hair, recolored hair, altered eye shape, altered nose shape,",
+    "altered lip shape, altered jaw,",
+    // Anti-identity-drift signals.
+    "plastic skin, mask-like faces, frozen symmetrical smiles, dental grin,",
+    "anime, manga, Disney character style, chibi, Pixar style, cartoon merchandise look,",
+    "missing glasses, missing accessories, identity drift, generic faces,",
+    "generic toddler face, idealized child features, smoothed children,",
+    "de-aged elders, removed wrinkles, youthified grandparents,",
+    "removed person, missing person, dropped subject, blank background, unfinished canvas,",
+    "replaced scene, teleported family,",
+    "distorted hands, extra fingers, blurry features, oversaturated, neon, fluorescent",
+  ].join(" "),
+  strength: 0.75,
+  guidance: 3.5,
+};
+
+export const ACTIVE_PRESET = PAINTERLY_V7;

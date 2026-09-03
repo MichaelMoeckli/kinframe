@@ -113,40 +113,115 @@ Once you've picked:
 
 ## Current pick
 
-**`google/nano-banana-pro` (Gemini Pro Image), via Replicate. Picked 2026-08-01.**
+**`google/nano-banana-2` (Gemini 3.1 Flash Image), via Replicate, PINNED. Picked 2026-09-03.**
 
 ```
-REPLICATE_MODEL_VERSION=google/nano-banana-pro
+REPLICATE_MODEL_VERSION=google/nano-banana-2:d1be8b5fc0931a253d417e12a484ac01ee9ccbc6daffd4792151377d5e5ff55f
 ```
 
-Scored on `painterly-v6` across three photos: a Central Asian family of four on a black studio backdrop, a Black family of three outdoors in hard sun, and a six-person white family group with a photographer in the foreground.
+Scored on `painterly-v6` across all four photos, six models, 24/24 generations
+successful. Full outputs in `bakeoff/outputs/2026-09-03T09-27-50-843Z/`.
 
-**Why it won.** It is the only candidate that held *both* halves of the problem at once on every photo. Everything else traded one for the other:
+| Model | Median latency | $/image | Signatures forged | Fits 60s maxDuration |
+|---|---|---|---|---|
+| flux-2-pro | 18.1s | 0.050 | 3 of 4 | yes |
+| **nano-banana-2** | **21.5s** | **0.101** | **1 of 4** | **yes** |
+| nano-banana-pro *(prev. pick)* | 32.2s | 0.134 | 0 of 4 | yes |
+| seedream-5-lite | 86.7s | 0.035 | 1 of 4 | no |
+| gpt-image-2 | 145.1s | 0.211 | 1 of 4 | no |
+| seedream-5-pro | 146.9s | 0.090 | 0 of 4 | no |
 
-- On the six-person group — the hardest input — it kept all six people, all six recognizable, and rendered them in loose confident brushwork that reads as an actual painting. Kontext turned the same photo into flat cel-shaded vector art. Qwen deleted two of the six.
-- It's the most reliable at the oil-paint medium. Impasto, directional strokes, canvas texture, softened edges — the specific signatures `painterly-v6` asks for — show up consistently rather than on one photo in three.
-- Backgrounds resolve the way V6's dark-backdrop rescue clause intends: the black studio backdrop became a warm cream wash without dragging the subjects with it.
+**Why it won.** It is the best model that actually fits the current
+architecture. It beats the outgoing pick on every axis except signatures: 33%
+faster, 25% cheaper, visibly more brushwork, and it was one of only three models
+to keep all six people *plus* the foreground photographer in
+`pexels-askar-abayev` - the hardest input. The outgoing `nano-banana-pro`
+deleted the photographer entirely and returned a washed-out, near-bare
+background on that photo.
 
-**Runner-up: `bytedance/seedream-4.5`** at a third of the price ($0.04 vs $0.134). Identity preservation is genuinely competitive — arguably the best of any candidate on the studio-backdrop photo, where it alone kept the grandmother's black hair and Kazakh features intact. It loses on medium: two of three outputs read as flat digital illustration, no brushwork. If preview volume ever makes $0.134 hurt, this is the fallback — and it's worth a preset tuned specifically at pushing it toward paint before writing it off.
+**Why the two best models did not win.** `seedream-5-pro` and `gpt-image-2`
+scored highest on paint quality and identity, and `seedream-5-pro` was one of
+only two models with zero forged signatures. Both take ~145s. `/api/generate`
+has a 60s `maxDuration`, so neither is selectable until generation moves off the
+request thread. **This makes the M5 queue item the highest-leverage work on the
+roadmap: it unlocks a model that is both better and 33% cheaper than what we
+run today.**
 
-**Why the incumbent lost.** `flux-kontext-max` is now beaten on quality by a cheaper model and on quality-per-dollar by two. Worse, it's *inconsistent*: credible oil on the outdoor family, flat vector on the group shot, and visible ethnicity drift on the studio photo — it Europeanized the grandmother's features and hair colour, which is precisely the failure mode `painterly-v6` was written to fix. One preset shouldn't have to fight the model that hard.
+**Runner-up: `bytedance/seedream-5-pro`** at $0.090 (33% below the outgoing
+pick). Strong identity, genuine oil texture, and clean corners on all four
+photos. Blocked on latency only. Re-test it the day the queue lands.
 
-**Rejected outright:**
+**Rejected:**
 
-- **`flux-2-pro`** has the richest paint texture of anything tested, but faces smear on group shots — several were unusable at print size — and it **forges a painter's signature** into the bottom corner of its output. That breaks the brand guardrail against implying a named human painted the piece, and it would need masking out on every order. Not worth it.
-- **`qwen-image-edit-plus`** is disqualified on composition, not style. It cropped the father's head off one photo and dropped two people entirely from the group shot. It also barely paints — output is close to the original photo with a soft filter. The cost floor isn't a floor if the product is wrong.
+- **`gpt-image-2`** - the best paint of anything tested, and disqualified. It
+  painted a fully legible fake painter's name, "L. Moreau", into the corner of
+  `pexels-askar-abayev`. That is the brand guardrail against implying a named
+  human painted the piece, broken in the most literal way possible. Also $0.211
+  and 145s.
+- **`flux-2-pro`** - forged signatures on 3 of 4 photos, degraded faces on group
+  shots, and it lightened the skin tones of the Black family in
+  `pexels-kindelmedia`. Fast and cheap, but wrong on the two axes that matter.
+- **`seedream-5-lite`** - the flattest output of the six, closer to a smoothed
+  photograph than a painting, and 86.7s. The $0.035 price is not a floor if the
+  product is wrong.
+- **`nano-banana-pro`** - see the regression note below.
 
-**What this costs.** $0.134/preview against $0.08 today — a $0.054 increase, or about $0.16 per order at three previews. Against a $99 sale and $25–40 CAC that is noise, and it stays inside the ~$0.50 generation budget in `CLAUDE.md`.
+**What this costs.** $0.101/preview against $0.134 - a 25% *reduction*. At
+$99 and $25-40 CAC this was never the binding constraint, but the direction is
+right and latency improved with it.
 
-**What to watch.** Median latency is ~31s, versus ~13s for Kontext. The `/api/generate` route has a 60s `maxDuration`, so a slow tail now has real headroom risk. This makes the M5 "move generation off the request thread" item more urgent than it was — see `docs/implementation-status.md`.
+### The signature problem (and the likely cause)
 
-**If this breaks**, in order: (1) `bytedance/seedream-4.5` for cost or availability pressure, (2) back to `black-forest-labs/flux-kontext-max`, which is a known-good if uneven quantity, (3) the direct Gemini SDK path in `lib/ai/gemini.ts`, which adds style-reference anchoring the Replicate path doesn't have.
+Four of six models painted a fake painter's signature into at least one output.
+This ships to the customer: `printReady.ts` upscales the **unwatermarked** file,
+so a forged signature lands on the printed canvas.
+
+The cause is probably ours. `painterly-v6` said *"Specific oil-paint
+**signatures** that MUST be visible in the output... If any of these signatures
+are missing the output is wrong."* It meant brushwork hallmarks. Models can read
+it as an instruction to sign the painting.
+
+`painterly-v7` fixes this: "signatures" renamed to "hallmarks" throughout, plus
+an explicit unsigned-canvas clause. **The v7 preset has not yet been scored** -
+re-run the bake-off on it and confirm the signature rate drops before trusting
+this. If it does, `gpt-image-2` and `flux-2-pro` deserve reconsideration on
+quality grounds, since signatures were their main disqualifier.
+
+### negativePrompt is dead config
+
+`AiPreset.negativePrompt` is declared on all seven presets and **read by
+nothing** - confirm with `grep -rn negativePrompt lib/`. Worse, no model on the
+2026-09 shortlist exposes a negative-prompt input at all, so wiring it up would
+not help. Every constraint that matters must live in the positive prompt. This
+likely explains why ethnicity drift survived V6 despite an extensive
+anti-drift negative block.
+
+### Pin your version hashes
+
+The outgoing pick ran as the unpinned slug `google/nano-banana-pro`, and it
+measurably regressed between 2026-08-01 and 2026-09-03: washed-out output, a
+dropped person, flatter medium. We cannot prove Google changed the model behind
+the slug, but an unpinned slug permits exactly that with no deploy on our side.
+All picks are now pinned to a version hash. Get one with:
+
+```bash
+curl -s -H "Authorization: Bearer $REPLICATE_API_TOKEN" https://api.replicate.com/v1/models/OWNER/NAME
+```
 
 ### Caveats on this run
 
-- **Three photos, not four.** The Replicate account ran out of credit partway through `pexels-seljansalim-33769388.jpg`, so all five candidates failed on it. That photo is unscored — re-run it after topping up to confirm the pick holds.
-- The three scored photos cover mixed ethnicities, group sizes 3–6, studio and outdoor light. They do **not** cover low light or a solo subject.
-- Nano Banana Pro ran prompt-only here. The Gemini SDK path additionally anchors on `brand/references/style/`, so this result is a floor for that model, not a ceiling.
+- **Scored against `painterly-v6`, but `ACTIVE_PRESET` is now `painterly-v7`.**
+  The ranking above is valid for v6. V7 changes the prompt materially
+  (unsigned-canvas clause, hair-colour and dropped-person clauses), so the
+  shortlist should be re-scored on v7 before the next lock.
+- **Ethnicity drift is not solved.** Several models lightened the Kazakh
+  grandmother's hair in `pexels-21zere`, including the winner. `seedream-5-lite`
+  held it best. This needs a human call, and it is the same failure class that
+  disqualified Kontext in August.
+- **Signature counts are per-photo presence**, judged from bottom-right corner
+  crops at full resolution (`_sig_corners.jpg` in the run directory). A model
+  scoring 0 of 4 is not guaranteed clean on unseen photos.
+- Four photos still do not cover low light or a solo subject.
 
 ## When to re-pick
 
@@ -163,3 +238,4 @@ Re-picking is cheap (~$1.30 and 15 minutes). Re-picking *and rewriting the prese
 |---|---|---|---|
 | 2026-05-24 | `painterly-v6` | flux-kontext-max only | Surfaced the three V5 failure modes (ethnicity drift, dark backdrops, flat illustration) that produced `painterly-v6`. Never scored across models. |
 | 2026-08-01 | `painterly-v6` | 5-way shortlist | Locked `google/nano-banana-pro`. Incumbent Kontext Max placed 3rd. 3 of 4 photos scored — ran out of Replicate credit on the 4th. |
+| 2026-09-03 | `painterly-v6` | 6-way shortlist | Locked `google/nano-banana-2` (pinned). All 4 photos x 6 models, 24/24 succeeded. Surfaced forged painter signatures in 4 of 6 models, a regression in the unpinned outgoing pick, and `negativePrompt` being dead config. Produced `painterly-v7`. |

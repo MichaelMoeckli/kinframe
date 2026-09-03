@@ -33,8 +33,16 @@ loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
 /**
- * The candidate shortlist, current as of 2026-08-01. Rationale, scoring rubric
+ * The candidate shortlist, current as of 2026-09-03. Rationale, scoring rubric
  * and the standing pick live in docs/model-picking.md — keep the two in sync.
+ *
+ * Ranks below are Elo on the Artificial Analysis image-*editing* arena, read
+ * 2026-09-03. The whole 2026-08 shortlist except the incumbent is gone: FLUX.2
+ * Pro and Qwen were disqualified on output (signature forging / dropped
+ * people), Kontext Max is two generations back, and Seedream 4.5 is superseded
+ * by 5.0. The top-ranked model overall (Microsoft MAI-Image-2.6, Elo 1329 at
+ * ~$0.039) is deliberately absent: it is closed-weight and not on Replicate,
+ * so running it means adding a second provider. See docs/model-picking.md.
  *
  * `approxCostUsd` is the published per-image price at the time of writing and
  * is only used for the run summary. Verify against the Replicate model page
@@ -51,34 +59,40 @@ type Candidate = {
 
 const CANDIDATES: Candidate[] = [
   {
-    name: "flux-kontext-max",
-    ref: "black-forest-labs/flux-kontext-max",
-    approxCostUsd: 0.08,
-    note: "Incumbent — what production runs today",
+    name: "nano-banana-2",
+    ref: "google/nano-banana-2",
+    approxCostUsd: 0.101,
+    note: "Gemini 3.1 Flash Image — Elo 1312, beats the incumbent at 3/4 the price",
+  },
+  {
+    name: "seedream-5-pro",
+    ref: "bytedance/seedream-5-pro",
+    approxCostUsd: 0.09,
+    note: "Elo 1309, ~2/3 the incumbent's price; 4.5 was our runner-up last round",
   },
   {
     name: "nano-banana-pro",
     ref: "google/nano-banana-pro",
     approxCostUsd: 0.134,
-    note: "Gemini Pro Image; current #1 on the Image Arena editing leaderboard",
+    note: "Incumbent — won 2026-08-01, now Elo 1308 and the priciest of the leaders",
   },
   {
-    name: "seedream-4.5",
-    ref: "bytedance/seedream-4.5",
-    approxCostUsd: 0.04,
-    note: "#2 on editing, ~half the incumbent's price",
+    name: "gpt-image-2",
+    ref: "openai/gpt-image-2",
+    approxCostUsd: 0.211,
+    note: "Elo 1327 at quality=high — the ceiling reference, not a cost-viable pick",
   },
   {
     name: "flux-2-pro",
     ref: "black-forest-labs/flux-2-pro",
     approxCostUsd: 0.05,
-    note: "Kontext's successor line; strongest photoreal texture",
+    note: "Texture benchmark, not a candidate — richest brushwork tested in 2026-08, but smears faces on groups",
   },
   {
-    name: "qwen-image-edit-plus",
-    ref: "qwen/qwen-image-edit-plus",
-    approxCostUsd: 0.03,
-    note: "Cost floor — only interesting if quality is close",
+    name: "seedream-5-lite",
+    ref: "bytedance/seedream-5-lite",
+    approxCostUsd: 0.035,
+    note: "Cost floor — Elo 1257 at ~1/4 the incumbent; the margin play if it lands",
   },
 ];
 

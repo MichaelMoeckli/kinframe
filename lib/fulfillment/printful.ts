@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { env } from "@/lib/env";
 
 const PRINTFUL_API_BASE = "https://api.printful.com";
@@ -78,28 +78,24 @@ export async function createPrintfulOrder(
 }
 
 /**
- * HMAC-SHA256 of the raw body using PRINTFUL_WEBHOOK_SECRET, compared to the
- * X-PF-Webhook-Signature header. When the secret is unset, we return true with
- * a warn so local/dev flows still work — production must set the secret.
+ * Printful doesn't sign webhook payloads (no HMAC, no signature header), so
+ * the only way to keep the endpoint from accepting spoofed requests is a
+ * shared secret embedded in the webhook URL itself — register the webhook
+ * as `.../api/printful/webhook?token=<PRINTFUL_WEBHOOK_SECRET>` in Printful.
+ * When the secret is unset, we return true with a warn so local/dev flows
+ * still work — production must set the secret.
  */
-export function verifyPrintfulWebhook(
-  rawBody: string,
-  signatureHeader: string | null,
-): boolean {
+export function verifyPrintfulWebhook(tokenParam: string | null): boolean {
   if (!env.PRINTFUL_WEBHOOK_SECRET) {
-    console.warn("[printful webhook] PRINTFUL_WEBHOOK_SECRET not set — accepting unsigned event");
+    console.warn("[printful webhook] PRINTFUL_WEBHOOK_SECRET not set — accepting unauthenticated event");
     return true;
   }
-  if (!signatureHeader) return false;
+  if (!tokenParam) return false;
 
-  const expected = createHmac("sha256", env.PRINTFUL_WEBHOOK_SECRET)
-    .update(rawBody)
-    .digest("hex");
-
-  const a = Buffer.from(expected, "hex");
-  const b = Buffer.from(signatureHeader.trim(), "hex");
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  const expected = Buffer.from(env.PRINTFUL_WEBHOOK_SECRET);
+  const actual = Buffer.from(tokenParam);
+  if (expected.length !== actual.length) return false;
+  return timingSafeEqual(expected, actual);
 }
 
 type StripeShipping = {
